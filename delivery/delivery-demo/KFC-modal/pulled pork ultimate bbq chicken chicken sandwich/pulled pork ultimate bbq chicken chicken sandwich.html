@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Scrollable Content View with Modal</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@400;500;600&display=swap"
+    rel="stylesheet">
+  <style>
+    :root {
+      /* Layout & Sizing Variables */
+      --card-width: 240px;
+      --grid-gap: 12px;
+      --page-margin: 10px;
+      --card-main-border-radius: 14px;
+      --large-card-internal-padding: 8px;
+      --large-card-internal-gap: 8px;
+      --large-card-internal-item-radius: 6px;
+      --skeleton-pulse-duration: 1.5s;
+
+      /* --- Light Theme Colors (Neutral) --- */
+      --neutral-white: #FFFFFF;
+      --neutral-light-gray: #F7F7F7;
+      --primary-navy: #1a2a6c;
+      --accent-gold: #c49b63;
+      --accent-glow: #f4c242;
+
+      /* --- Dark Mode Palette (Midnight) --- */
+      --dark-bg: #181A1C;
+      --dark-surface: #25282C;
+      --dark-surface-interactive: #35393F;
+      --dark-text-primary: #E8EAED;
+      --dark-text-secondary: #9AA0A6;
+      --dark-border: #404347;
+
+      /* --- Semantic Color Variables (Default to Light Theme) --- */
+      --color-bg-page: var(--neutral-white);
+      --color-bg-card: var(--neutral-white);
+      --color-border-card: rgba(0, 0, 0, 0.08);
+      --color-border-card-hover: var(--accent-gold);
+      --color-border-card-first: var(--primary-navy);
+      --color-text-loading: #555;
+      --color-spinner: #555;
+      --color-shadow-card: rgba(0, 0, 0, 0.05);
+      --color-shadow-card-hover: rgba(0, 0, 0, 0.1);
+      --color-shadow-card-hover-accent: rgba(196, 155, 99, 0.4);
+
+      /* MODAL COLORS (Light) */
+      --color-bg-modal-overlay: rgba(50, 50, 50, 0.4);
+      --color-border-modal: #FFFFFF;
+      --color-bg-modal-panel: var(--neutral-light-gray);
+      --color-text-modal-header: #111;
+      --color-text-modal-body: #444;
+      --color-bg-modal-button: #e0e0e0;
+      --color-text-modal-button: #111;
+      --color-bg-modal-button-active: var(--accent-glow);
+
+      /* Skeleton UI Colors */
+      --wireframe-skeleton-bg: #E0E0E0;
+      --wireframe-skeleton-opacity-pulse: 0.5;
+      --blurred-skeleton-bg: rgba(0, 0, 0, 0.08);
+      --blurred-skeleton-blur: 3px;
+      --blurred-skeleton-opacity-pulse: 0.6;
+    }
+
+    /* --- Dark Mode Media Query --- */
+    @media (prefers-color-scheme: dark) {
+      :root {
+        /* Remap semantic variables to dark theme colors */
+        --color-bg-page: var(--dark-bg);
+        --color-bg-card: var(--dark-surface);
+        --color-border-card: var(--dark-border);
+        --color-border-card-hover: var(--accent-gold);
+        --color-border-card-first: var(--accent-gold);
+        --color-text-loading: var(--dark-text-secondary);
+        --color-spinner: var(--dark-text-primary);
+        --color-shadow-card: rgba(0, 0, 0, 0.2);
+        --color-shadow-card-hover: rgba(0, 0, 0, 0.4);
+
+        /* MODAL COLORS (Dark) */
+        --color-bg-modal-overlay: rgba(0, 0, 0, 0.6);
+        --color-border-modal: var(--dark-surface);
+        --color-bg-modal-panel: var(--dark-surface-interactive);
+        --color-text-modal-header: var(--dark-text-primary);
+        --color-text-modal-body: var(--dark-text-secondary);
+        --color-bg-modal-button: var(--dark-surface);
+        --color-text-modal-button: var(--dark-text-primary);
+
+        /* Adjust skeleton loader for dark mode */
+        --wireframe-skeleton-bg: var(--dark-surface-interactive);
+        --blurred-skeleton-bg: rgba(255, 255, 255, 0.08);
+      }
+    }
+
+    /* --- Base & Page Styles --- */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: var(--color-bg-page);
+      color: var(--dark-text-primary);
+      min-height: 100vh;
+      overflow-x: hidden;
+      transition: background-color 0.3s ease;
+    }
+
+    /* --- Modal Styles --- */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1000;
+      display: grid;
+      place-items: center;
+      background-color: var(--color-bg-modal-overlay);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.3s ease, visibility 0.3s ease;
+    }
+
+    .modal-overlay.visible {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .modal-container {
+      width: 500px;
+      height: 500px;
+      max-width: 90vw;
+      max-height: 90vh;
+      display: grid;
+      grid-template-columns: calc(43.5% - 1.5px) 1fr;
+      grid-template-rows: 2fr 1fr;
+      gap: 3px;
+      background-color: var(--color-border-modal);
+      padding: 3px;
+      border-radius: 24px;
+      transition: background-color 0.3s ease;
+      transform: scale(0.95);
+      opacity: 0;
+      transition: transform 0.3s ease, opacity 0.3s ease;
+    }
+
+    .modal-overlay.visible .modal-container {
+      transform: scale(1);
+      opacity: 1;
+    }
+
+    .modal-panel {
+      background-color: var(--color-bg-modal-panel);
+      color: var(--color-text-modal-body);
+      transition: background-color 0.3s ease, color 0.3s ease;
+    }
+
+    .modal-panel.top-left {
+      grid-column: 1 / 2;
+      grid-row: 1 / 2;
+      border-top-left-radius: 22px;
+      overflow-y: auto;
+      scrollbar-gutter: stable;
+    }
+
+    .description-content {
+      padding: 16px;
+    }
+
+    /* === HIERARCHY & SPACING STYLES === */
+    .description-content h4 {
+      margin-bottom: 8px;
+      font-size: 1.4em;
+      font-weight: 700;
+      color: var(--color-text-modal-header);
+      transition: color 0.3s ease;
+      line-height: 1.3;
+      /* Added for better title wrapping */
+    }
+
+    .description-content .price {
+      font-size: 1.1em;
+      font-weight: 700;
+      margin-bottom: 20px;
+    }
+
+    .description-content p {
+      line-height: 1.6;
+    }
+
+    .description-content ul {
+      list-style-position: outside;
+      padding-left: 20px;
+      font-size: 0.9em;
+      line-height: 1.6;
+    }
+
+    .description-content li {
+      margin-bottom: 12px;
+    }
+
+    .modal-panel.bottom-left {
+      grid-column: 1 / 2;
+      grid-row: 2 / 3;
+      border-bottom-left-radius: 22px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      gap: 20px;
+      padding: 10px;
+    }
+
+    .modal-panel.right {
+      position: relative;
+      grid-column: 2 / 3;
+      grid-row: 1 / 3;
+      display: grid;
+      grid-auto-rows: calc((100% - 3px) / 2);
+      gap: 3px;
+      overflow-y: scroll;
+      scroll-snap-type: y mandatory;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+      border-top-right-radius: 22px;
+      border-bottom-right-radius: 22px;
+    }
+
+    .modal-panel.right::-webkit-scrollbar {
+      display: none;
+    }
+
+    .indicator-dots-container {
+      position: absolute;
+      bottom: 15px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 8px;
+      z-index: 10;
+      pointer-events: none;
+    }
+
+    .indicator-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: rgba(255, 255, 255, 0.4);
+      transition: background-color 0.3s ease, transform 0.3s ease;
+    }
+
+    .indicator-dot.active {
+      background-color: rgba(255, 255, 255, 0.9);
+      transform: scale(1.2);
+    }
+
+    .burger_gallery-image-container {
+      scroll-snap-align: start;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .burger_gallery-image-container img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      transition: transform 0.4s ease;
+    }
+
+    .burger_gallery-image-container:hover img {
+      transform: scale(1.1);
+    }
+
+    .modal-panel.top-left::-webkit-scrollbar {
+      width: 3px;
+    }
+
+    .modal-panel.top-left::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .modal-panel.top-left::-webkit-scrollbar-thumb {
+      background-color: rgba(255, 255, 255, 0);
+      border-radius: 1px;
+    }
+
+    .modal-panel.top-left.is-scrolling::-webkit-scrollbar-thumb {
+      background-color: rgba(180, 180, 180, 0.4);
+    }
+
+    .display-container {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .display-number {
+      font-size: 1.2rem;
+      font-weight: bold;
+      color: var(--color-text-modal-header);
+      transition: color 0.3s ease;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .arrow-button {
+      position: relative;
+      width: 32px;
+      height: 32px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      cursor: pointer;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .arrow-button::before {
+      content: '';
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      background-color: var(--color-bg-modal-button-active);
+      border-radius: 50%;
+      opacity: 0;
+      z-index: 0;
+      transition: background-color 0.3s ease;
+    }
+
+    .arrow-button:active::before {
+      opacity: 1;
+    }
+
+    .arrow-icon {
+      width: 17px;
+      height: 17px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .arrow-icon path {
+      fill: var(--color-text-modal-header);
+      transition: fill 0.3s ease;
+    }
+
+    .down-arrow {
+      transform: rotate(180deg);
+    }
+
+    .arrow-button:active .arrow-icon path {
+      fill: #000000;
+    }
+
+    .btn {
+      width: 85%;
+      position: relative;
+      padding: 12px 0;
+      font-size: 1em;
+      border: none;
+      outline: none;
+      background: transparent;
+      color: var(--color-text-modal-button);
+      font-weight: 500;
+      cursor: pointer;
+      border-radius: 50px;
+      z-index: 1;
+      overflow: hidden;
+      transition: color 0.3s ease;
+    }
+
+    .btn::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: var(--color-bg-modal-button);
+      border-radius: inherit;
+      z-index: -1;
+      transition: background-color 0.2s ease;
+    }
+
+    .btn::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: calc(100% + 4px);
+      height: calc(100% + 4px);
+      background: linear-gradient(90deg,
+          var(--accent-gold),
+          var(--accent-glow),
+          var(--accent-gold));
+      background-size: 300% 100%;
+      border-radius: inherit;
+      filter: blur(2px);
+      opacity: 0;
+      z-index: -2;
+      animation: glowing 15s linear infinite;
+    }
+
+    @keyframes glowing {
+      0% {
+        background-position: 0 0;
+      }
+
+      50% {
+        background-position: 300% 0;
+      }
+
+      100% {
+        background-position: 0 0;
+      }
+    }
+
+    .btn:hover::before {
+      opacity: 0.7;
+    }
+
+    .btn:active::after {
+      background-color: var(--color-bg-modal-button-active);
+    }
+
+    .btn:active {
+      color: #000000;
+    }
+  </style>
+</head>
+
+<body>
+  <!-- MODAL HTML STRUCTURE -->
+  <div class="modal-overlay visible"> <!-- The "visible" class shows the modal -->
+    <div class="modal-container">
+      <div class="modal-panel top-left">
+        <!-- MODIFIED DESCRIPTION SECTION -->
+        <div class="description-content">
+          <h4>pulled pork ultimate bbq chicken chicken sandwich</h4>
+          <p class="price">Price(k150)</p>
+          <ul>
+            <li>coleslaw</li>
+            <li>barbecue sauce</li>
+            <li>fried onion rings</li>
+            <li>cheese</li>
+          </ul>
+        </div>
+      </div>
+      <div class="modal-panel bottom-left">
+        <div class="display-container">
+          <div class="arrow-button" id="decrease-button">
+            <svg class="arrow-icon down-arrow" viewBox="0 0 32 32">
+              <path d="m26.71 10.29-10-10a1 1 0 0 0-1.41 0l-10 10 1.41 1.41L15 3.41V32h2V3.41l8.29 8.29z" />
+            </svg>
+          </div>
+          <span class="display-number">1</span>
+          <div class="arrow-button" id="increase-button">
+            <svg class="arrow-icon up-arrow" viewBox="0 0 32 32">
+              <path d="m26.71 10.29-10-10a1 1 0 0 0-1.41 0l-10 10 1.41 1.41L15 3.41V32h2V3.41l8.29 8.29z" />
+            </svg>
+          </div>
+        </div>
+        <button class="btn">GRAB</button>
+      </div>
+      <div class="modal-panel right">
+        <!-- === IMAGE NAMES CHANGED HERE === -->
+        <div class="burger_gallery-image-container"><img
+            src="pulled-pork-ultimate-bbq-chicken-chicken-sandwich-main-view.jpg"
+            alt="Photo of the Ultimate BBQ Chicken Sandwich"></div>
+        <div class="burger_gallery-image-container"><img
+            src="pulled-pork-ultimate-bbq-chicken-chicken-sandwich-closeup.jpg"
+            alt="Close-up photo of the barbecue sauce on the chicken sandwich"></div>
+        <div class="indicator-dots-container">
+          <span class="indicator-dot active"></span>
+          <span class="indicator-dot"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      // --- Modal Logic ---
+      function initModal() {
+        const modal = document.querySelector('.modal-overlay');
+        if (!modal) return;
+
+        // Counter logic
+        const increaseButton = modal.querySelector('#increase-button');
+        const decreaseButton = modal.querySelector('#decrease-button');
+        const numberDisplay = modal.querySelector('.display-number');
+        let count = parseInt(numberDisplay.textContent);
+
+        increaseButton.addEventListener('click', () => {
+          count++;
+          numberDisplay.textContent = count;
+        });
+        decreaseButton.addEventListener('click', () => {
+          if (count > 1) {
+            count--;
+            numberDisplay.textContent = count;
+          }
+        });
+
+        // Description panel scrollbar styling
+        const scrollableDescPanel = modal.querySelector('.top-left');
+        let descScrollTimeout;
+        scrollableDescPanel.addEventListener('scroll', () => {
+          scrollableDescPanel.classList.add('is-scrolling');
+          clearTimeout(descScrollTimeout);
+          descScrollTimeout = setTimeout(() => {
+            scrollableDescPanel.classList.remove('is-scrolling');
+          }, 1500);
+        });
+
+        // Dot indicator logic
+        const imagePanel = modal.querySelector('.modal-panel.right');
+        const dots = modal.querySelectorAll('.indicator-dot');
+        const images = modal.querySelectorAll('.burger_gallery-image-container');
+        let imageScrollTimer;
+
+        if (imagePanel && dots.length > 0 && images.length > 0) {
+          imagePanel.addEventListener('scroll', () => {
+            clearTimeout(imageScrollTimer);
+            imageScrollTimer = setTimeout(() => {
+              const imageHeight = images[0].offsetHeight;
+              const activeIndex = Math.round(imagePanel.scrollTop / imageHeight);
+
+              dots.forEach((dot, index) => {
+                if (index === activeIndex) {
+                  dot.classList.add('active');
+                } else {
+                  dot.classList.remove('active');
+                }
+              });
+            }, 100); // A 100ms delay is usually sufficient
+          });
+        }
+      }
+
+      // Initialize only the modal logic
+      initModal();
+    });
+  </script>
+</body>
+
+</html>

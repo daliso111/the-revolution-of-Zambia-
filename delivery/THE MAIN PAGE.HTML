@@ -1,0 +1,956 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Scrollable Content View</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@400;500;600&display=swap"
+    rel="stylesheet">
+  <style>
+    :root {
+      /* Layout & Sizing Variables */
+      --card-width: 240px;
+      --grid-gap: 24px;
+      /* MODIFIED: Increased for better spacing */
+      --page-margin: 10px;
+      --card-main-border-radius: 14px;
+      --large-card-internal-padding: 8px;
+      --large-card-internal-gap: 8px;
+      --large-card-internal-item-radius: 6px;
+      --skeleton-pulse-duration: 1.5s;
+
+      /* --- Original Light Theme Colors --- */
+      --dusty-rose: #EED6D3;
+      --light-sage: #EDF5F3;
+      --primary-navy: #1a2a6c;
+      --accent-gold: #c49b63;
+
+      /* --- Dark Mode Palette (Midnight) --- */
+      --dark-bg: #181A1C;
+      --dark-surface: #25282C;
+      --dark-surface-interactive: #35393F;
+      --dark-text-primary: #E8EAED;
+      --dark-text-secondary: #9AA0A6;
+      --dark-border: #404347;
+
+      /* --- Semantic Color Variables (Default to Light Theme) --- */
+      --color-bg-page: var(--dusty-rose);
+      --color-bg-card: var(--light-sage);
+      --color-border-card: rgba(238, 214, 211, 0.6);
+      --color-border-card-hover: var(--accent-gold);
+      --color-border-card-first: var(--primary-navy);
+      --color-text-loading: #555;
+      --color-spinner: #555;
+      --color-shadow-card: rgba(0, 0, 0, 0.05);
+      --color-shadow-card-hover: rgba(0, 0, 0, 0.1);
+      --color-shadow-card-hover-accent: rgba(196, 155, 99, 0.4);
+
+      /* --- Skeleton UI Colors --- */
+      --wireframe-skeleton-bg: #b0bec5;
+      --wireframe-skeleton-opacity-pulse: 0.5;
+      --blurred-skeleton-bg: rgba(0, 0, 0, 0.08);
+      --blurred-skeleton-blur: 3px;
+      --blurred-skeleton-opacity-pulse: 0.6;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: var(--color-bg-page);
+      color: var(--dark-text-primary);
+      min-height: 100vh;
+      overflow-x: hidden;
+      transition: background-color 0.3s ease;
+    }
+
+    .page-wrapper {
+      padding: var(--page-margin);
+      width: 100%;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .scroll-row {
+      width: 100%;
+      height: calc((100vh - (var(--page-margin) * 2) - (var(--grid-gap) * 2)) / 3);
+      margin-bottom: var(--grid-gap);
+      overflow-x: auto;
+      overflow-y: hidden;
+      -webkit-overflow-scrolling: touch;
+      position: relative;
+      border-radius: 8px;
+      background-color: transparent;
+    }
+
+    .scroll-row:last-child {
+      margin-bottom: 0;
+    }
+
+    .scroll-row::-webkit-scrollbar {
+      display: none;
+    }
+
+    .scroll-row {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+
+    .row-content {
+      display: flex;
+      flex-direction: row;
+      gap: var(--grid-gap);
+      width: max-content;
+      padding: 0 var(--grid-gap);
+      /* MODIFIED: Adds breathing room to the sides */
+      height: 100%;
+    }
+
+    .property-card,
+    .large-box-section {
+      position: relative;
+      background-color: var(--color-bg-card);
+      overflow: hidden;
+      box-shadow: 0 1px 6px var(--color-shadow-card);
+      border: 1px solid var(--color-border-card);
+      transition: transform 0.4s ease-out, box-shadow 0.3s ease-out, border-color 0.3s ease-out, opacity 0.4s ease-out, background-color 0.3s ease;
+      height: 100%;
+      opacity: 0;
+      transform: translateY(20px) scale(0.98);
+    }
+
+    .property-card {
+      width: var(--card-width);
+      border-radius: var(--card-main-border-radius);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .large-box-section {
+      width: calc(1.6 * var(--card-width) + var(--grid-gap));
+      border-radius: var(--card-main-border-radius);
+    }
+
+    .property-card.visible,
+    .large-box-section.visible {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+
+    .property-card.first-card {
+      border-color: var(--color-border-card-first);
+      box-shadow: 0 3px 10px var(--color-shadow-card);
+    }
+
+    .property-card:hover,
+    .large-box-section:hover {
+      transform: translateY(-8px);
+      box-shadow: 0 12px 20px var(--color-shadow-card-hover), 0 0 15px var(--color-shadow-card-hover-accent);
+      border-color: var(--color-border-card-hover);
+      cursor: pointer;
+    }
+
+    .property-card .image-container,
+    .property-card .listing-details,
+    .large-box-section .media-container {
+      opacity: 0;
+      transition: opacity 0.4s ease-in;
+      position: relative;
+      z-index: 1;
+    }
+
+    .property-card:not(.loading) .image-container,
+    .property-card:not(.loading) .listing-details,
+    .large-box-section:not(.loading) .media-container {
+      opacity: 1;
+    }
+
+    .property-card.loading .image-container,
+    .property-card.loading .listing-details,
+    .large-box-section.loading .media-container {
+      opacity: 0;
+    }
+
+    .image-container {
+      position: relative;
+      flex-grow: 1;
+      overflow: hidden;
+    }
+
+    .property-card img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .listing-details {
+      position: relative;
+      padding: 10px;
+      background: linear-gradient(to top, rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.3) 70%, transparent);
+      backdrop-filter: blur(1.5px);
+      -webkit-backdrop-filter: blur(1.5px);
+      color: white;
+      text-align: left;
+      display: flex;
+      align-items: center;
+      min-height: 60px;
+      flex-shrink: 0;
+    }
+
+    .mini-image {
+      width: 36px;
+      height: 36px;
+      border-radius: 4px;
+      margin-right: 10px;
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+
+    .mini-image img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .text-content {
+      flex-grow: 1;
+      overflow: hidden;
+    }
+
+    .listing-details .price {
+      font-size: 1em;
+      font-weight: 700;
+      color: white;
+      margin-bottom: 2px;
+      text-align: left;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .listing-details .description {
+      font-size: 0.75em;
+      color: rgba(255, 255, 255, 0.9);
+      text-align: left;
+      line-height: 1.3;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      overflow: hidden;
+    }
+
+    .free-tag {
+      background-color: rgba(40, 167, 69, 0.85);
+      color: white;
+      font-size: 0.7em;
+      font-weight: 600;
+      padding: 2px 6px;
+      border-radius: 4px;
+      margin-left: auto;
+      flex-shrink: 0;
+    }
+
+    .property-tag {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      background-color: rgba(26, 42, 108, 0.85);
+      color: white;
+      font-size: 0.65em;
+      font-weight: 600;
+      padding: 2px 6px;
+      border-radius: 4px;
+      z-index: 5;
+      text-transform: uppercase;
+    }
+
+    .property-tag.new {
+      background-color: rgba(40, 167, 69, 0.85);
+    }
+
+    .property-tag.featured {
+      background-color: rgba(255, 193, 7, 0.9);
+      color: #333;
+    }
+
+    .media-container {
+      display: flex;
+      gap: var(--large-card-internal-gap);
+      padding: var(--large-card-internal-padding);
+      height: 100%;
+    }
+
+    .video-container {
+      flex: 2;
+      border-radius: var(--large-card-internal-item-radius);
+      overflow: hidden;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+      position: relative;
+    }
+
+    .video-container video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      border-radius: var(--large-card-internal-item-radius);
+    }
+
+    .image-container-large {
+      flex: 1;
+      border-radius: var(--large-card-internal-item-radius);
+      overflow: hidden;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+      position: relative;
+    }
+
+    .image-container-large img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      border-radius: var(--large-card-internal-item-radius);
+    }
+
+    .image-container-large .image-overlay {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      padding: 10px;
+      background: linear-gradient(to top, rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.3) 70%, transparent);
+      backdrop-filter: blur(1.5px);
+      -webkit-backdrop-filter: blur(1.5px);
+      color: white;
+      text-align: left;
+      display: flex;
+      align-items: center;
+    }
+
+    /* Skeleton UI Styles */
+    .skeleton-ui {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: var(--color-bg-card);
+      opacity: 0;
+      transition: opacity 0.3s ease-out, background-color 0.3s ease;
+      pointer-events: none;
+      z-index: 2;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .property-card .skeleton-ui {
+      border-radius: var(--card-main-border-radius);
+    }
+
+    .large-box-section .skeleton-ui {
+      border-radius: var(--card-main-border-radius);
+    }
+
+    .property-card.loading .skeleton-ui,
+    .large-box-section.loading .skeleton-ui {
+      opacity: 1;
+    }
+
+    .skeleton-block {
+      transition: background-color 0.25s ease-out, filter 0.25s ease-out, opacity var(--skeleton-pulse-duration) ease-in-out;
+    }
+
+    .property-card.loading-initial .skeleton-block,
+    .large-box-section.loading-initial .skeleton-block {
+      background-color: var(--wireframe-skeleton-bg);
+      filter: none;
+      animation: skeleton-pulse-wireframe var(--skeleton-pulse-duration) cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+
+    @keyframes skeleton-pulse-wireframe {
+
+      0%,
+      100% {
+        opacity: var(--wireframe-skeleton-opacity-pulse);
+      }
+
+      50% {
+        opacity: 1;
+      }
+    }
+
+    .property-card.loading-image-loaded .skeleton-block,
+    .large-box-section.loading-image-loaded .skeleton-block {
+      background-color: var(--blurred-skeleton-bg);
+      filter: blur(var(--blurred-skeleton-blur));
+      animation: skeleton-pulse-blurred var(--skeleton-pulse-duration) cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+
+    @keyframes skeleton-pulse-blurred {
+
+      0%,
+      100% {
+        opacity: var(--blurred-skeleton-opacity-pulse);
+      }
+
+      50% {
+        opacity: 1;
+      }
+    }
+
+    .property-card .skeleton-ui .skeleton-image-ph {
+      flex-grow: 1;
+      margin: 0;
+    }
+
+    .property-card .skeleton-ui .skeleton-details-ph {
+      height: 60px;
+      padding: 10px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+      background-color: rgba(0, 0, 0, 0.01);
+    }
+
+    .property-card .skeleton-ui .skeleton-mini-img-ph {
+      width: 36px;
+      height: 36px;
+      border-radius: 4px;
+      flex-shrink: 0;
+    }
+
+    .property-card .skeleton-ui .skeleton-text-lines-ph {
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    .property-card .skeleton-ui .skeleton-line-ph {
+      height: 12px;
+      border-radius: 3px;
+    }
+
+    .property-card .skeleton-ui .skeleton-line-ph.title-ph {
+      width: 50%;
+    }
+
+    .property-card .skeleton-ui .skeleton-line-ph.desc-ph {
+      width: 85%;
+    }
+
+    .large-box-section .skeleton-ui .skeleton-media-container-ph {
+      display: flex;
+      gap: var(--large-card-internal-gap);
+      padding: var(--large-card-internal-padding);
+      height: 100%;
+    }
+
+    .large-box-section .skeleton-ui .skeleton-video-ph {
+      flex: 2;
+      border-radius: var(--large-card-internal-item-radius);
+    }
+
+    .large-box-section .skeleton-ui .skeleton-image-lg-ph {
+      flex: 1;
+      border-radius: var(--large-card-internal-item-radius);
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      overflow: hidden;
+    }
+
+    .large-box-section .skeleton-ui .skeleton-image-overlay-ph {
+      min-height: 56px;
+      padding: 10px;
+      margin: 0 var(--large-card-internal-padding) var(--large-card-internal-padding);
+      border-radius: 0 0 var(--large-card-internal-item-radius) var(--large-card-internal-item-radius);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background-color: rgba(0, 0, 0, 0.02);
+    }
+
+    .large-box-section.loading-initial .skeleton-image-overlay-ph .skeleton-block {
+      background-color: color-mix(in srgb, var(--wireframe-skeleton-bg) 80%, black 20%);
+    }
+
+    .large-box-section.loading-image-loaded .skeleton-image-overlay-ph .skeleton-block {
+      background-color: color-mix(in srgb, var(--blurred-skeleton-bg) 80%, black 20%);
+    }
+
+    .large-box-section .skeleton-ui .skeleton-mini-img-ph {
+      width: 36px;
+      height: 36px;
+      border-radius: 4px;
+      flex-shrink: 0;
+    }
+
+    .large-box-section .skeleton-ui .skeleton-text-lines-ph {
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 5px;
+    }
+
+    .large-box-section .skeleton-ui .skeleton-line-ph {
+      height: 10px;
+      border-radius: 3px;
+    }
+
+    .large-box-section .skeleton-ui .skeleton-image-overlay-ph .skeleton-line-ph.title-ph {
+      width: 40%;
+    }
+
+    .large-box-section .skeleton-ui .skeleton-image-overlay-ph .skeleton-line-ph.desc-ph {
+      width: 70%;
+    }
+
+    .loading-indicator {
+      text-align: center;
+      padding: 20px;
+      font-size: 1.1em;
+      color: var(--color-text-loading);
+      width: auto;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      z-index: 1000;
+    }
+
+    .spinner {
+      border: 4px solid rgba(0, 0, 0, 0.1);
+      border-left-color: var(--color-spinner);
+      border-radius: 50%;
+      width: 30px;
+      height: 30px;
+      animation: spin-loader 1s linear infinite;
+      margin: 0 auto;
+    }
+
+    @keyframes spin-loader {
+      0% {
+        transform: rotate(0deg);
+      }
+
+      100% {
+        transform: rotate(360deg);
+      }
+    }
+
+    /* --- Dark Mode Media Query --- */
+    @media (prefers-color-scheme: dark) {
+      :root {
+        /* Remap semantic variables to dark theme colors */
+        --color-bg-page: var(--dark-bg);
+        --color-bg-card: var(--dark-surface);
+        --color-border-card: var(--dark-border);
+        --color-border-card-hover: var(--accent-gold);
+        --color-border-card-first: var(--accent-gold);
+        --color-text-loading: var(--dark-text-secondary);
+        --color-spinner: var(--dark-text-primary);
+        --color-shadow-card: rgba(0, 0, 0, 0.2);
+        --color-shadow-card-hover: rgba(0, 0, 0, 0.4);
+
+        /* Adjust skeleton loader for dark mode */
+        --wireframe-skeleton-bg: var(--dark-surface-interactive);
+        --blurred-skeleton-bg: rgba(255, 255, 255, 0.08);
+      }
+    }
+
+    /* Media Queries relevant to scrollable content */
+    @media (max-width: 768px) {
+      :root {
+        --card-width: 200px;
+        /* Keep original gap or adjust slightly if needed for smaller screens */
+        /* --grid-gap: 16px; */
+        --large-card-internal-padding: 6px;
+        --large-card-internal-gap: 6px;
+        --large-card-internal-item-radius: 4px;
+      }
+
+      .large-box-section {
+        width: calc(1.7 * var(--card-width) + var(--grid-gap));
+      }
+
+      .listing-details {
+        padding: 8px;
+      }
+
+      .mini-image {
+        width: 32px;
+        height: 32px;
+        margin-right: 8px;
+      }
+
+      .listing-details .description {
+        font-size: 0.7em;
+      }
+
+      .property-tag {
+        top: 5px;
+        right: 5px;
+        font-size: 0.6em;
+        padding: 1px 4px;
+      }
+
+      .image-container-large .image-overlay {
+        padding: 8px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      :root {
+        --card-width: 160px;
+        /* Keep original gap or adjust slightly if needed for smaller screens */
+        /* --grid-gap: 12px; */
+        --page-margin: 5px;
+        --large-card-internal-padding: 6px;
+        --large-card-internal-gap: 6px;
+        --large-card-internal-item-radius: 4px;
+      }
+
+      .large-box-section {
+        width: calc(100% - var(--page-margin) * 2);
+      }
+
+      .listing-details {
+        padding: 6px;
+      }
+
+      .mini-image {
+        width: 28px;
+        height: 28px;
+        margin-right: 6px;
+      }
+
+      .listing-details .price {
+        font-size: 0.9em;
+        margin-bottom: 1px;
+      }
+
+      .listing-details .description {
+        font-size: 0.65em;
+      }
+
+      .media-container {
+        flex-direction: column;
+      }
+
+      .video-container {
+        height: 60%;
+        width: 100%;
+      }
+
+      .image-container-large {
+        height: 40%;
+        width: 100%;
+      }
+
+      .image-container-large .image-overlay {
+        padding: 6px;
+      }
+    }
+
+    #modal-container {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      display: none;
+      place-items: center;
+      opacity: 0;
+      transition: opacity 0.3s ease-in-out;
+    }
+
+    #modal-container.visible {
+      display: grid;
+      opacity: 1;
+    }
+
+    #modal-overlay {
+      position: absolute;
+      inset: 0;
+      background-color: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(5px);
+      -webkit-backdrop-filter: blur(5px);
+    }
+
+    .modal-spinner-container {
+      position: absolute;
+      z-index: 1001;
+      display: none;
+    }
+
+    #modal-container.loading .modal-spinner-container {
+      display: block;
+    }
+
+    #modal-content-wrapper {
+      position: relative;
+      z-index: 1002;
+    }
+
+    #modal-close-button {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      z-index: 1003;
+      background: rgba(0, 0, 0, 0.4);
+      color: white;
+      border: none;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      font-size: 28px;
+      line-height: 40px;
+      text-align: center;
+      cursor: pointer;
+      transition: background-color 0.2s ease, transform 0.2s ease;
+    }
+
+    #modal-close-button:hover {
+      background: rgba(0, 0, 0, 0.7);
+      transform: scale(1.1);
+    }
+  </style>
+</head>
+
+<body>
+
+  <div id="modal-container">
+    <div id="modal-overlay"></div>
+    <div class="modal-spinner-container">
+      <div class="spinner"></div>
+    </div>
+    <div id="modal-content-wrapper">
+    </div>
+    <button id="modal-close-button">×</button>
+  </div>
+
+  <div class="page-wrapper" id="page-wrapper">
+    <div class="scroll-row">
+      <div class="row-content" id="row1"></div>
+    </div>
+    <div class="scroll-row">
+      <div class="row-content" id="row2"></div>
+    </div>
+    <div class="scroll-row">
+      <div class="row-content" id="row3"></div>
+    </div>
+    <div class="loading-indicator" style="display: none;">
+      <div class="spinner"></div>
+    </div>
+  </div>
+
+  <script>
+    const propertyIcons = ['https://cdn-icons-png.flaticon.com/128/2942/2942076.png', 'https://cdn-icons-png.flaticon.com/128/1650/1650355.png', 'https://cdn-icons-png.flaticon.com/128/3448/3448609.png', 'https://cdn-icons-png.flaticon.com/128/2942/2942074.png', 'https://cdn-icons-png.flaticon.com/128/609/609752.png', 'https://cdn-icons-png.flaticon.com/128/1037/1037253.png', 'https://cdn-icons-png.flaticon.com/128/2134/2134067.png', 'https://cdn-icons-png.flaticon.com/128/2134/2134049.png', 'https://cdn-icons-png.flaticon.com/128/3448/3448610.png', 'https://cdn-icons-png.flaticon.com/128/2134/2134109.png'];
+    const productIcons = ['https://cdn-icons-png.flaticon.com/128/2972/2972437.png', 'https://cdn-icons-png.flaticon.com/128/1021/1021264.png', 'https://cdn-icons-png.flaticon.com/128/2972/2972416.png', 'https://cdn-icons-png.flaticon.com/128/1055/1055666.png', 'https://cdn-icons-png.flaticon.com/128/1055/1055646.png'];
+    const videoUrls = ['https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/360/Big_Buck_Bunny_360_10s_1MB.mp4', 'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/360/Big_Buck_Bunny_360_10s_1MB.mp4', 'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/360/Big_Buck_Bunny_360_10s_1MB.mp4'];
+    const myImageFiles = ["100-percent-burger-ingredients-closeup.jpg", "burger_image_2.jpg", "chicken-wings-01.jpg", "download (2).jpeg", "flame-grilled-ribs-close-up.jpg", "full-chicken-carved-platter.jpg", "golden-brown-chips.jpg", "lion-pork-ribs-full-rack.jpg", "modal-gallery-01.jpg", "photo-02 (2).jpg", "photo-03.jpg", "pulled-pork-ultimate-bbq-chicken-chicken-sandwich-main-view.jpg", "twister-wrap-hero.jpg", "ultimate-chipotle-bbq-chicken-sandwich-ingredients-closeup.jpg"];
+
+    // --- FINAL, SIMPLIFIED CODE. This works with the standard project structure. ---
+    const masterList = [
+      {
+        id: 101,
+        price: 'k40',
+        description: 'hand cut chips',
+        imageUrl: 'golden-brown-chips.jpg',
+        miniImageUrl: propertyIcons[7],
+        isNew: false,
+        isFeatured: false,
+        modalPath: 'delivery-demo/STEERS/chips/full_chips.html'
+      }
+    ];
+
+    let lastImageUsedByRow = [null, null, null];
+
+    function openModal(modalPath) {
+      const modalContainer = document.getElementById('modal-container');
+      const modalContentWrapper = document.getElementById('modal-content-wrapper');
+
+      modalContentWrapper.innerHTML = '';
+      modalContainer.classList.add('visible', 'loading');
+
+      const fullPath = modalPath;
+      const imagePathPrefix = modalPath.substring(0, modalPath.lastIndexOf('/') + 1);
+
+      fetch(fullPath)
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`Network response was not ok: ${response.statusText}`);
+          }
+          return response.text();
+        })
+        .then(htmlText => {
+          const parser = new DOMParser();
+          const tempDoc = parser.parseFromString(htmlText, 'text/html');
+          const extractedContent = tempDoc.body.firstElementChild;
+
+          if (!extractedContent) {
+            throw new Error("Could not find content to extract from modal file.");
+          }
+
+          const images = extractedContent.querySelectorAll('img');
+          images.forEach(img => {
+            const originalSrc = img.getAttribute('src');
+            if (originalSrc && !originalSrc.startsWith('http')) {
+              img.src = imagePathPrefix + originalSrc;
+            }
+          });
+
+          modalContentWrapper.appendChild(extractedContent);
+          modalContainer.classList.remove('loading');
+        })
+        .catch(error => {
+          console.error('Failed to load modal:', error);
+          modalContentWrapper.innerHTML = `<p style="color: white; background: #c0392b; padding: 20px; border-radius: 8px;">CHEF'S ERROR: Could not load content from ${fullPath}</p>`;
+          modalContainer.classList.remove('loading');
+        });
+    }
+
+    const generateProperties = (count, rowIndex, startId = 0) => {
+      const properties = [];
+      let lastImageUrl = lastImageUsedByRow[rowIndex];
+      for (let i = 0; i < count; i++) {
+        const id = startId + i;
+        let newImageUrl;
+        do {
+          const randomIndex = Math.floor(Math.random() * myImageFiles.length);
+          newImageUrl = myImageFiles[randomIndex];
+        } while (myImageFiles.length > 1 && newImageUrl === lastImageUrl);
+        lastImageUrl = newImageUrl;
+        properties.push({ id, imageUrl: newImageUrl, miniImageUrl: propertyIcons[id % propertyIcons.length], price: `Ksh ${Math.floor(Math.random() * 50 + 10)}M`, description: `Land size: ${Math.floor(Math.random() * 5 + 0.5)} acres, Area ${Math.floor(Math.random() * 20 + 1)}.`, isNew: Math.random() < 0.2, isFeatured: Math.random() < 0.1 });
+      }
+      lastImageUsedByRow[rowIndex] = lastImageUrl;
+      return properties;
+    };
+
+    function createPropertyCardSkeleton() { const skeletonDiv = document.createElement('div'); skeletonDiv.className = 'skeleton-ui'; skeletonDiv.innerHTML = ` <div class="skeleton-image-ph skeleton-block"></div> <div class="skeleton-details-ph"> <div class="skeleton-mini-img-ph skeleton-block"></div> <div class="skeleton-text-lines-ph"> <div class="skeleton-line-ph title-ph skeleton-block"></div> <div class="skeleton-line-ph desc-ph skeleton-block"></div> </div> </div> `; return skeletonDiv; }
+
+    function createPropertyCard(property) {
+      const card = document.createElement('div');
+      card.className = 'property-card';
+      if (property.id === 0) card.classList.add('first-card');
+      card.appendChild(createPropertyCardSkeleton());
+      card.classList.add('loading', 'loading-initial');
+
+      if (property.modalPath) {
+        card.addEventListener('click', () => {
+ // PASTE THIS IN ITS PLACE
+
+          if (property.modalPath) {
+
+            // This is Checkpoint 1
+            console.log(`Attaching click listener for property ID: ${property.id}`);
+
+            card.addEventListener('click', () => {
+
+              // This is Checkpoint 2
+              console.log(`Card ${property.id} CLICKED! Calling openModal with path: ${property.modalPath}`);
+
+              openModal(property.modalPath);
+            });
+
+          } else {
+
+            // This is the Bonus Checkpoint
+            console.log(`Skipping modal for property ID: ${property.id} because modalPath is empty.`);
+
+          }
+
+        });
+      }
+
+      let tagsHtml = '';
+      if (property.isNew) tagsHtml += '<span class="property-tag new">NEW</span>';
+      if (property.isFeatured) tagsHtml += '<span class="property-tag featured">FEATURED</span>';
+      const imageContainer = document.createElement('div');
+      imageContainer.className = 'image-container';
+      const mainImage = document.createElement('img');
+      mainImage.alt = `Property ${property.id}`;
+      mainImage.loading = "lazy";
+      imageContainer.appendChild(mainImage);
+      imageContainer.insertAdjacentHTML('beforeend', tagsHtml);
+      const listingDetails = document.createElement('div');
+      listingDetails.className = 'listing-details';
+      listingDetails.innerHTML = ` <div class="mini-image"> <img src="${property.miniImageUrl}" alt="Mini icon" loading="lazy" onerror="this.src='https://via.placeholder.com/36x36?text=Icon'"> </div> <div class="text-content"> <div class="price">${property.price}</div> <p class="description">${property.description}</p> </div> <div class="free-tag">Free</div> `;
+      let imageLoadHandled = false;
+      const showFinalContent = () => { card.classList.remove('loading', 'loading-initial', 'loading-image-loaded'); };
+      const switchToBlurredSkeleton = () => { if (imageLoadHandled || !card.classList.contains('loading')) return; imageLoadHandled = true; card.classList.remove('loading-initial'); card.classList.add('loading-image-loaded'); setTimeout(showFinalContent, 1500 + Math.random() * 500); };
+      mainImage.onload = switchToBlurredSkeleton;
+      mainImage.onerror = () => { mainImage.src = 'https://via.placeholder.com/240x160?text=Image+Error'; switchToBlurredSkeleton(); };
+
+      // Paths are now simple, with no prefixes needed.
+      mainImage.src = property.imageUrl;
+
+      card.appendChild(imageContainer);
+      card.appendChild(listingDetails);
+      setTimeout(() => { card.classList.add('visible'); }, 50 + (property.id % 10) * 30);
+      return card;
+    }
+
+    function createLargeBoxSkeleton() { const skeletonDiv = document.createElement('div'); skeletonDiv.className = 'skeleton-ui'; skeletonDiv.innerHTML = ` <div class="skeleton-media-container-ph"> <div class="skeleton-video-ph skeleton-block"></div> <div class="skeleton-image-lg-ph skeleton-block"> <div class="skeleton-image-overlay-ph"> <div class="skeleton-mini-img-ph skeleton-block"></div> <div class="skeleton-text-lines-ph"> <div class="skeleton-line-ph title-ph skeleton-block"></div> <div class="skeleton-line-ph desc-ph skeleton-block"></div> </div> </div> </div> </div> `; return skeletonDiv; }
+    function createLargeBoxSection(index) { const largeBox = document.createElement('div'); largeBox.className = 'large-box-section'; largeBox.appendChild(createLargeBoxSkeleton()); largeBox.classList.add('loading', 'loading-initial'); const videoUrl = videoUrls[index % videoUrls.length]; const imageUrls = ['https://picsum.photos/seed/showcase1/400/250', 'https://picsum.photos/seed/showcase2/400/250', 'https://picsum.photos/seed/showcase3/400/250']; const imageUrl = imageUrls[index % imageUrls.length]; const miniImageUrl = productIcons[index % productIcons.length]; const mediaContainer = document.createElement('div'); mediaContainer.className = 'media-container'; mediaContainer.innerHTML = ` <div class="video-container"> <video controls muted loop playsinline preload="metadata"> <source src="${videoUrl}" type="video/mp4"> Your browser does not support the video tag. </video> </div> <div class="image-container-large"> <img src="${imageUrl}" alt="Product showcase ${index}" loading="lazy" onerror="this.src='https://via.placeholder.com/400x250?text=Image+Error'"> <div class="image-overlay"> <div class="mini-image"> <img src="${miniImageUrl}" alt="Mini icon" loading="lazy" onerror="this.src='https://via.placeholder.com/36x36?text=Icon'"> </div> <div class="text-content"> <div class="price">Product ${index + 1}</div> <p class="description">Engaging showcase item details.</p> </div> <div class="free-tag">Free</div> </div> </div> </div> `; const videoElement = mediaContainer.querySelector('video'); let videoLoadHandled = false; const showFinalContentLarge = () => { largeBox.classList.remove('loading', 'loading-initial', 'loading-image-loaded'); }; const switchToBlurredSkeletonLarge = () => { if (videoLoadHandled || !largeBox.classList.contains('loading')) return; videoLoadHandled = true; largeBox.classList.remove('loading-initial'); largeBox.classList.add('loading-image-loaded'); setTimeout(showFinalContentLarge, 1500 + Math.random() * 500); }; videoElement.oncanplaythrough = switchToBlurredSkeletonLarge; videoElement.onerror = () => { console.warn('Video failed to load or play:', videoUrl); switchToBlurredSkeletonLarge(); }; largeBox.appendChild(mediaContainer); setTimeout(() => { largeBox.classList.add('visible'); }, 100 + (index % 5) * 40); return largeBox; }
+    function shouldInsertLargeBox(rowIndex, position) { if (rowIndex === 0) return position === 2; if (rowIndex === 1) return position === 0; return position === 3; }
+
+    function populateRow(rowId, rowIndex, itemCount = 8) {
+      const pageWrapper = document.getElementById('page-wrapper');
+      const rowElement = pageWrapper ? pageWrapper.querySelector('#' + rowId) : document.getElementById(rowId);
+      if (!rowElement) { console.error(`Scrollable content: Row element ${rowId} not found.`); return; }
+      const baseStartId = (rowIndex + 1) * 10000 + Date.now() % 1000;
+      let cardsToCreate = [];
+      if (rowIndex === 0) { cardsToCreate.push(...masterList); }
+      const randomCount = itemCount - cardsToCreate.length;
+      if (randomCount > 0) { const randomProperties = generateProperties(randomCount, rowIndex, baseStartId); cardsToCreate.push(...randomProperties); }
+      let cardIndex = 0;
+      let largeBoxTrueIndex = 0;
+      for (let i = 0; i < itemCount; i++) {
+        if (shouldInsertLargeBox(rowIndex, i)) { const largeBox = createLargeBoxSection(baseStartId + 5000 + largeBoxTrueIndex++); rowElement.appendChild(largeBox); } else {
+          if (cardIndex < cardsToCreate.length) { const cardData = cardsToCreate[cardIndex]; const card = createPropertyCard(cardData); rowElement.appendChild(card); cardIndex++; }
+        }
+      }
+    }
+
+    function initScrollableContent(containerElement) { if (!containerElement) { console.error("Scrollable content: Container element not provided for initialization."); return; } populateRow('row1', 0, 10); populateRow('row2', 1, 10); populateRow('row3', 2, 10); containerElement.querySelectorAll('.scroll-row').forEach((row, rowIndex) => { let isLoading = false; const rowContent = row.querySelector('.row-content'); if (!rowContent) { console.warn(`Scrollable content: Row content not found for scroll row ${rowIndex} within the provided container.`); return; } let currentPropertyCardCountInRow = Array.from(rowContent.children).filter(child => child.classList.contains('property-card')).length; row.addEventListener('scroll', () => { if (isLoading) return; const { scrollLeft, scrollWidth, clientWidth } = row; if (scrollLeft + clientWidth >= scrollWidth - 350) { isLoading = true; const baseIdForNewItems = (rowIndex + 1) * 20000 + currentPropertyCardCountInRow + Date.now() % 1000; const newProperties = generateProperties(4, rowIndex, baseIdForNewItems); newProperties.forEach(prop => { const card = createPropertyCard(prop); rowContent.appendChild(card); }); currentPropertyCardCountInRow += newProperties.length; setTimeout(() => isLoading = false, 500); } }); });[...propertyIcons, ...productIcons].forEach(url => { const img = new Image(); img.src = url; }); console.log("Scrollable content initialized in standalone file."); }
+
+    // --- CHANGE 2: ACTIVATE THE CLOSE BUTTONS ---
+    document.addEventListener('DOMContentLoaded', () => {
+      const pageWrapper = document.getElementById('page-wrapper');
+      if (pageWrapper) {
+        initScrollableContent(pageWrapper);
+      } else {
+        console.error("Scrollable content standalone: #page-wrapper not found on DOMContentLoaded.");
+      }
+
+      const modalContainer = document.getElementById('modal-container');
+      const modalCloseButton = document.getElementById('modal-close-button');
+      const modalOverlay = document.getElementById('modal-overlay');
+
+      const closeModal = () => {
+        modalContainer.classList.remove('visible');
+      };
+
+      modalCloseButton.addEventListener('click', closeModal);
+      modalOverlay.addEventListener('click', closeModal);
+    });
+  </script>
+</body>
+
+</html>
